@@ -1,0 +1,10 @@
+# Ignore model weights
+model_cache/
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore logs
+logs/
+*.log
