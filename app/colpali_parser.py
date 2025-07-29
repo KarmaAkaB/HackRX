@@ -24,9 +24,9 @@ class ColpaliParser:
 
         self.colpali_model = ColPali.from_pretrained(
             pretrained_model_name_or_path=model_name,
-            torch_dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
-            device_map="auto",
-            cache_dir="./model_cache"
+            torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+            cache_dir="./model_cache",
+            device_map="auto"  
         )
         self.colpali_processor = ColPaliProcessor.from_pretrained(
             pretrained_model_name_or_path=model_name,
@@ -70,12 +70,13 @@ class ColpaliParser:
         logger.info("Generating embeddings for images...")
         try:
             for i in tqdm(range(0, len(self.images), self.BATCH_SIZE), desc="Generating embeddings"):
-                batch_images = self.images[i:i + self.BATCH_SIZE]
-                inputs = self.colpali_processor(images=batch_images, return_tensors="pt", padding=True).to(self.device)
+                batch = self.images[i:i+self.BATCH_SIZE]
+                images = [item for item in batch]
                 with torch.no_grad():
-                    outputs = self.colpali_model(**inputs)
-                embeddings = outputs.last_hidden_state.cpu().numpy()
-                self.embeddings.extend(embeddings)
+                  batch_images = self.colpali_processor.process_images(images).to(self.device)
+                  image_embeddings = self.colpali_model(**batch_images)
+                for j,embedding in enumerate(image_embeddings):
+                  self.embeddings.append(embedding.tolist())
                 logger.info(f"Generated embeddings for batch {i // self.BATCH_SIZE + 1}.")
         except Exception as e:
             logger.error(f"Error generating embeddings: {e}")
@@ -94,5 +95,9 @@ class ColpaliParser:
 
 if __name__ == "__main__":
     url = "https://hackrx.blob.core.windows.net/assets/policy.pdf?sv=2023-01-03&st=2025-07-04T09%3A11%3A24Z&se=2027-07-05T09%3A11%3A00Z&sr=b&sp=r&sig=N4a9OU0w0QXO6AOIBiu4bpl7AXvEZogeT%2FjUHNO7HzQ%3D"
-    parser = ColpaliParser(pdf_url=url)
-    images = parser.run(view_images=True)
+    try:
+        parser = ColpaliParser(pdf_url=url)
+        embeddings = parser.run(view_images=True)
+        print(type(embeddings),len(embeddings[0]),embeddings[0], "embeddings generated.")
+    except Exception as e:
+        logger.exception("An error occurred while running the parser.")
